@@ -3,14 +3,32 @@ from flask import Flask, render_template, request, Response
 import cv2
 import numpy as np
 from ultralytics import YOLO
+from threading import Thread
+import os
+import time 
+
 
 # Disable SSL verification (not recommended for production)
 ssl._create_default_https_context = ssl._create_unverified_context
 
-# Load YOLOv8 model
-model = YOLO("yolov8n.pt")
-
 app = Flask(__name__)
+
+# Load YOLOv8 model
+model = None
+
+def load_model():
+    global model
+    model = YOLO("yolov8n.pt")
+
+Thread(target=load_model).start()
+
+@app.before_request
+def ensure_model_loaded():
+    global model
+    while model is None:
+        time.sleep(1)
+
+
 
 def process_frame(frame):
     # Calculate aspect ratio
@@ -58,4 +76,5 @@ def video_feed():
     return "Invalid file"
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=5000, debug=False)
