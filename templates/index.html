@@ -3,163 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Object Detection</title>
-    <style>
-        :root {
-            --background: #e0e5ec;
-            --text: #4a4a4a;
-            --shadow: #a3b1c6;
-            --light: #ffffff;
-        }
-        body {
-            font-family: Arial, sans-serif;
-            background-color: var(--background);
-            color: var(--text);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .container {
-            max-width: 800px;
-            width: 100%;
-        }
-        h2, h3 {
-            text-align: center;
-        }
-        .neumorphic {
-            background: var(--background);
-            border-radius: 10px;
-            box-shadow: 5px 5px 10px var(--shadow), -5px -5px 10px var(--light);
-            padding: 20px;
-            margin: 20px 0;
-        }
-        .media-container {
-            position: relative;
-            width: 100%;
-            padding-bottom: 75%; /* 4:3 Aspect Ratio */
-            overflow: hidden;
-        }
-        #video, #processed_image {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
-        #uploadForm {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        input[type="file"] {
-            margin-bottom: 10px;
-        }
-        button {
-            background: var(--background);
-            color: var(--text);
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 3px 3px 6px var(--shadow), -3px -3px 6px var(--light);
-        }
-        button:hover {
-            box-shadow: inset 2px 2px 5px var(--shadow), inset -2px -2px 5px var(--light);
-        }
-    </style>
+    <title>Video Feed</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+
 </head>
 <body>
-    <div class="container">
-        <h2>Object Detection Test</h2>
-        <p>This is my first attempt to use YOLO8 with Flask</p>
-        <div class="neumorphic">
-            <div class="media-container">
-                <video id="video" autoplay playsinline></video>
-                <img id="processed_image" alt="Processed Frame" style="display: none;">
-            </div>
-        </div>
-        <h3>Try the model with a picture</h3>
-        <form id="uploadForm" enctype="multipart/form-data" class="neumorphic">
-            <input type="file" name="file" id="fileInput" accept="image/*" capture="camera">
-            <button type="submit">Upload</button>
-        </form>
-    </div>
+    <h2>Object detection test</h2>
+    <p>this is my first attempt to use YOLO8 with Flask</p>
+    <div id="message"></div>
+    <video id="video" autoplay></video>
+    <img id="processed_image" alt="Processed Frame">
+    <br>
+    <h3>In case you want to try the model with a picture</h3>
+    <form action="/video_feed" method="post" enctype="multipart/form-data">
+        <input type="file" name="file">
+        <input type="submit" value="Upload">
+    </form>
 
     <script>
         const video = document.getElementById('video');
-        const processedImage = document.getElementById('processed_image');
-        const uploadForm = document.getElementById('uploadForm');
 
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-                .then(stream => {
-                    video.srcObject = stream;
-                })
-                .catch(err => {
-                    console.error("Error accessing the camera: " + err);
-                });
-        } else {
-            console.error("getUserMedia is not supported in this browser");
-        }
+        // Request access to the camera
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+            })
+            .catch(err => {
+                console.error("Error accessing the camera: " + err);
+                alert("Error accessing the camera. Please check your browser settings and allow camera access.");
+            });
 
+        // Capture frame and send to the server
         function captureFrame() {
             if (video.videoWidth === 0 || video.videoHeight === 0) {
                 console.error("Video not initialized yet.");
                 return;
             }
+
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
             canvas.toBlob(blob => {
-                const formData = new FormData();
-                formData.append('file', blob, 'frame.jpg');
-                
-                fetch('/video_feed', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.blob())
-                .then(imageBlob => {
-                    processedImage.src = URL.createObjectURL(imageBlob);
-                    video.style.display = 'none';
-                    processedImage.style.display = 'block';
-                })
-                .catch(err => console.error("Error processing frame: " + err));
+                if (blob) {
+                    const formData = new FormData();
+                    formData.append('file', blob, 'frame.jpg');
+
+                    fetch('/video_feed', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.blob())
+                    .then(imageBlob => {
+                        const imageUrl = URL.createObjectURL(imageBlob);
+                        document.getElementById('processed_image').src = imageUrl;
+                    })
+                    .catch(err => console.error("Error sending frame: " + err));
+                } else {
+                    console.error("Blob creation failed");
+                }
             }, 'image/jpeg');
         }
 
-        function adaptiveCapture() {
-            const start = Date.now();
-            captureFrame();
-            const processingTime = Date.now() - start;
-            const nextInterval = Math.max(1000, processingTime * 2); // Ensure at least 1 second between captures
-            setTimeout(adaptiveCapture, nextInterval);
-        }
-
-        adaptiveCapture(); // Start the adaptive capture loop
-
-        uploadForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            
-            fetch('/video_feed', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.blob())
-            .then(imageBlob => {
-                processedImage.src = URL.createObjectURL(imageBlob);
-                video.style.display = 'none';
-                processedImage.style.display = 'block';
-            })
-            .catch(err => console.error("Error processing uploaded image: " + err));
-        });
+        // Capture frame every second
+        setInterval(captureFrame, 1000);
     </script>
 </body>
 </html>

@@ -1,0 +1,25 @@
+body{
+    background-color: rgb(196, 215, 239);
+
+}
+
+#boton {
+    margin: 5%;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 95vh;
+    margin: 0;
+
+}
+video, img {
+    width: 50%;
+    height: auto;
+    border: 3px solid #100f0f;
+    border-radius: 3px;
+    margin-bottom: 3px;
+}
